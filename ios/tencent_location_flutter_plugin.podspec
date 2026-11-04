@@ -14,8 +14,11 @@ wrapping the native Tencent Location SDK for iOS.
   s.license          = { :file => '../LICENSE' }
   s.author           = { 'Tencent' => 'lbs@tencent.com' }
   s.source           = { :path => '.' }
-  s.source_files = 'tencent_location_flutter_plugin/Sources/tencent_location_flutter_plugin/**/*.{swift,h,m}'
-  s.public_header_files = 'tencent_location_flutter_plugin/Sources/tencent_location_flutter_plugin/Bridge/*.h'
+  s.source_files = 'tencent_location_flutter_plugin/Sources/**/*.{swift,h,m}'
+  s.public_header_files = 'tencent_location_flutter_plugin/Sources/TLPGeofenceBridge/include/*.h'
+  s.resource_bundles = {
+    'tencent_location_flutter_plugin_privacy' => ['tencent_location_flutter_plugin/Sources/tencent_location_flutter_plugin/PrivacyInfo.xcprivacy'],
+  }
   s.dependency 'Flutter'
   s.dependency 'TencentLocationSDK', '4.3.1'
   s.platform = :ios, '13.0'

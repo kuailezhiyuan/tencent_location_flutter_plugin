@@ -1,24 +1,27 @@
 # tencent_location_flutter_plugin
 
-腾讯定位服务（[腾讯位置服务开放平台](https://lbs.qq.com/)）的官方 Flutter 插件，对原生 SDK 的连续定位、单次定位、地理围栏与常用坐标 / 距离工具做了统一封装。
+本仓库基于 [腾讯位置服务发布的 Flutter 插件 0.2.2](https://pub.dev/packages/tencent_location_flutter_plugin/versions/0.2.2) 独立维护，对原生 SDK 的连续定位、单次定位、地理围栏与常用坐标 / 距离工具做了统一封装。
 
 ## 平台支持
 
 | 平台 | 状态 | 底层 SDK |
 | --- | --- | --- |
 | 🅰️ Android | 已实装 | `TencentLocationSdk-openplatform`（Maven Central） |
-| 🍏 iOS | 已实装 | `TencentLocationSDK`（CocoaPods） |
+| 🍏 iOS | 已实装 | `TencentLBS.xcframework` 4.3.1（SwiftPM 或 CocoaPods） |
 | 🔶 HarmonyOS | 已实装 | `@tencentmap/location_sdk`（ohpm） |
 
 各公开 API 在文档注释中都以 🅰️ / 🍏 / 🔶 三行明确列出各平台的支持情况与差异；调用平台不支持的接口会抛出 `TencentLocationError`，错误码为 `unsupportedOnThisPlatform`。
 
 ## 安装
 
-在你的 `pubspec.yaml` 中加入依赖：
+在你的 `pubspec.yaml` 中引用本仓库的分支：
 
 ```yaml
 dependencies:
-  tencent_location_flutter_plugin: ^0.2.0
+  tencent_location_flutter_plugin:
+    git:
+      url: https://github.com/kuailezhiyuan/tencent_location_flutter_plugin.git
+      ref: codex/ios-xcframework-swiftpm
 ```
 
 然后执行：
@@ -38,6 +41,16 @@ flutter pub get
 1. 在 [腾讯位置服务开放平台](https://lbs.qq.com/) 申请 iOS 平台的 ApiKey。
 2. 在 `ios/Runner/Info.plist` 中声明定位用途字符串（`NSLocationWhenInUseUsageDescription` 等）。
 3. ApiKey 可通过 `Info.plist` 配置或运行时通过 [`TencentLocationSDK.init`](#快速开始) 传入。
+
+使用本仓库的插件时，启用了 SwiftPM 的 Flutter 项目会从腾讯下载并校验 `TencentLBS.xcframework`，支持 `arm64` 真机和 `arm64` / `x86_64` 模拟器构建。
+
+通过 CocoaPods 接入时，在宿主 `ios/Podfile` 的 Runner target 中，紧接在 `flutter_install_all_ios_pods` 之后添加以下依赖，让 CocoaPods 使用同一份 XCFramework：
+
+```ruby
+pod 'TencentLocationSDK', :podspec => '.symlinks/plugins/tencent_location_flutter_plugin/ios/TencentLocationSDK.podspec'
+```
+
+宿主通过 `use_frameworks!` 集成 CocoaPods 时，使用 `use_frameworks! :linkage => :static`。启用 SwiftPM 后应移除上述 CocoaPods 覆盖，避免重复链接 SDK。
 
 ### HarmonyOS 配置
 

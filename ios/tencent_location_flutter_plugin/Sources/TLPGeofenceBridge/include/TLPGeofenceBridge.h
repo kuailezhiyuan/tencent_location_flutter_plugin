@@ -4,7 +4,7 @@
 //
 //  Swift bridge: ObjC method `geofenceRegionsContainingCoordinate:` 与
 //  property `geofenceRegions` 同前缀，Swift 桥接会隐藏方法本身，
-//  这里通过 category 用新名字暴露。
+//  通过 C 函数暴露该方法，使静态链接器保留桥接实现。
 //
 
 #import <Foundation/Foundation.h>
@@ -13,11 +13,7 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
-@interface TencentLBSGeofenceManager (TLPSwiftBridge)
-
-/// 与原生 `geofenceRegionsContainingCoordinate:` 等价，仅改名以避免 Swift 桥接冲突。tlp：Tencent Location Plugin。
-- (NSArray<TencentLBSGeofenceRegion *> *)tlp_geofenceRegionsContainingCoordinate:(CLLocationCoordinate2D)coordinate;
-
-@end
+FOUNDATION_EXPORT NSArray<TencentLBSGeofenceRegion *> *TLPGeofenceRegionsContainingCoordinate(
+    TencentLBSGeofenceManager *manager, CLLocationCoordinate2D coordinate);
 
 NS_ASSUME_NONNULL_END

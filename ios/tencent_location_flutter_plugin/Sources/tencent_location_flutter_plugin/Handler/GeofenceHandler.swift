@@ -1,6 +1,9 @@
 import CoreLocation
 import Flutter
 import TencentLBS
+#if SWIFT_PACKAGE
+import TLPGeofenceBridge
+#endif
 
 /// 处理所有 ``geofence.*`` method。
 final class GeofenceHandler {
@@ -134,11 +137,7 @@ final class GeofenceHandler {
                 Errors.invalidArg(result, "coordinate required"); return true
             }
             let coordinateType = entry.geofenceManager.coordinateType
-            // 通过 ObjC bridge category（TLPGeofenceBridge）调用原生
-            // `geofenceRegionsContainingCoordinate:`，避免 Swift 桥接时
-            // 与同名 readonly property 冲突。
-            let rawRegions = entry.geofenceManager
-                .tlp_geofenceRegionsContaining(coordinate)
+            let rawRegions = TLPGeofenceRegionsContainingCoordinate(entry.geofenceManager, coordinate)
             let regions = rawRegions.map {
                 GeofenceCodec.toMap($0, coordinateType: coordinateType)
                     .compactMapValues { $0 }

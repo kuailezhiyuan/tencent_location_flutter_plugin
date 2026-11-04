@@ -1,35 +1,40 @@
 PODS:
   - Flutter (1.0.0)
-  - permission_handler_apple (9.3.0):
+  - integration_test (0.0.1):
     - Flutter
-  - tencent_location_flutter_plugin (0.0.1):
+  - permission_handler_apple (9.4.8):
+    - Flutter
+  - tencent_location_flutter_plugin (0.2.0):
     - Flutter
     - TencentLocationSDK (= 4.3.1)
   - TencentLocationSDK (4.3.1)
 
 DEPENDENCIES:
   - Flutter (from `Flutter`)
+  - integration_test (from `.symlinks/plugins/integration_test/ios`)
   - permission_handler_apple (from `.symlinks/plugins/permission_handler_apple/ios`)
   - tencent_location_flutter_plugin (from `.symlinks/plugins/tencent_location_flutter_plugin/ios`)
-
-SPEC REPOS:
-  trunk:
-    - TencentLocationSDK
+  - TencentLocationSDK (from `../../ios/TencentLocationSDK.podspec`)
 
 EXTERNAL SOURCES:
   Flutter:
     :path: Flutter
+  integration_test:
+    :path: ".symlinks/plugins/integration_test/ios"
   permission_handler_apple:
     :path: ".symlinks/plugins/permission_handler_apple/ios"
   tencent_location_flutter_plugin:
     :path: ".symlinks/plugins/tencent_location_flutter_plugin/ios"
+  TencentLocationSDK:
+    :podspec: "../../ios/TencentLocationSDK.podspec"
 
 SPEC CHECKSUMS:
-  Flutter: cabc95a1d2626b1b06e7179b784ebcf0c0cde467
-  permission_handler_apple: 9878588469a2b0d0fc1e048d9f43605f92e6cec2
-  tencent_location_flutter_plugin: 566299bdb762133765ac43b4a2fb46c16b2edb5b
-  TencentLocationSDK: ee635ecf243eee9178583e13fb81d052fd095ec6
+  Flutter: 71a624a5bc0c04062bf19101d501e466baf2fb47
+  integration_test: 4a889634ef21a45d28d50d622cf412dc6d9f586e
+  permission_handler_apple: 92d754bbaa7361d436db2d6c3c1c2a0fdcec462e
+  tencent_location_flutter_plugin: 9cbb52764c98f1829cec343eb30f6f9b6b25ee7e
+  TencentLocationSDK: b791d7cd7effcb1634873bbfcafea3033aa98010
 
-PODFILE CHECKSUM: 85207fa614003171370688ea3baaf8528b181fc0
+PODFILE CHECKSUM: d45c09dc3dd8a38d123498c97c0fde838b78b7ea
 
-COCOAPODS: 1.16.2
+COCOAPODS: 1.17.0
