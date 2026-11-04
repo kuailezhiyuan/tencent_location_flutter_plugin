@@ -1,0 +1,16 @@
+{
+  "string": [
+    {
+      "name": "module_test_desc",
+      "value": "Tencent Location Flutter Plugin ArkTS tests"
+    },
+    {
+      "name": "TestAbility_desc",
+      "value": "Hypium test ability"
+    },
+    {
+      "name": "TestAbility_label",
+      "value": "Tencent Location Plugin Tests"
+    }
+  ]
+}

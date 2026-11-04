@@ -1,0 +1,20 @@
+{
+  "string": [
+    {
+      "name": "module_desc",
+      "value": "module description"
+    },
+    {
+      "name": "EntryAbility_desc",
+      "value": "description"
+    },
+    {
+      "name": "EntryAbility_label",
+      "value": "tencent_location_flutter_plugin_example"
+    },
+    {
+      "name": "permission_location_reason",
+      "value": "用于提供精准定位、地理围栏、设备朝向等定位服务"
+    }
+  ]
+}

@@ -1,0 +1,16 @@
+{
+  "modelVersion": "5.0.0",
+  "name": "tencent_location_flutter_plugin",
+  "version": "0.2.0",
+  "description": "Tencent Location SDK plugin for Flutter, HarmonyOS platform implementation.",
+  "main": "Index.ets",
+  "author": "Tencent Location Team",
+  "license": "Apache-2.0",
+  "dependencies": {
+    "@ohos/flutter_ohos": "file:./har/flutter.har",
+    "@tencentmap/location_sdk": "^1.2.0"
+  },
+  "devDependencies": {
+    "@ohos/hypium": "1.0.6"
+  }
+}

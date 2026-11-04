@@ -1,0 +1,9 @@
+# Obfuscation rules applied when building the HAR in release mode.
+# Public plugin entry classes referenced by pubspec.yaml `pluginClass`
+# must not be renamed, or Flutter engine will fail to locate them at runtime.
+
+-keep-file-name
+
+-keep
+tencent_location_flutter_plugin
+TencentLocationFlutterPlugin

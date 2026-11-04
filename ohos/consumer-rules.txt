@@ -1,0 +1,9 @@
+# Consumer obfuscation rules for tencent_location_flutter_plugin (HarmonyOS).
+# Downstream apps will apply these rules on top of their own obfuscation
+# configuration; keep public symbols visible so Dart <-> native routing works.
+
+-keep-file-name
+
+-keep
+tencent_location_flutter_plugin
+TencentLocationFlutterPlugin

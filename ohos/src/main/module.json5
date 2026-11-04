@@ -1,0 +1,12 @@
+{
+  "module": {
+    "name": "tencent_location_flutter_plugin",
+    "type": "har",
+    "deviceTypes": [
+      "default",
+      "tablet",
+      "2in1",
+      "car"
+    ]
+  }
+}
