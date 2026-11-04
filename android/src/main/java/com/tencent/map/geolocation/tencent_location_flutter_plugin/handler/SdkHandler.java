@@ -1,10 +1,10 @@
 package com.tencent.map.geolocation.tencent_location_flutter_plugin.handler;
 
 import android.content.Context;
+import android.util.Log;
 
 import androidx.annotation.NonNull;
 
-import com.tencent.map.geolocation.TencentLocationLogListener;
 import com.tencent.map.geolocation.TencentLocationManager;
 import com.tencent.map.geolocation.TencentLocationManagerOptions;
 import com.tencent.map.geolocation.tencent_location_flutter_plugin.event.EventDispatcher;
@@ -24,27 +24,23 @@ public class SdkHandler {
     private final Context appContext;
     private final EventDispatcher dispatcher;
 
-    private TencentLocationLogListener logListener;
-    /** 日志转发器是否已成功装载到 SDK。隐私未同意会装载失败，需要后续补装。 */
+    private boolean initialized;
     private boolean logForwarderInstalled;
 
     public SdkHandler(@NonNull Context appContext,
                       @NonNull EventDispatcher dispatcher) {
         this.appContext = appContext;
         this.dispatcher = dispatcher;
-        installSdkLogForwarder();
     }
 
     /** 返回 true 表示已处理，否则让主路由器 notImplemented。 */
     public boolean handle(@NonNull MethodCall call, @NonNull Result result) {
         switch (call.method) {
             case "sdk.setPrivacyPolicyAgreement": {
-                Boolean agreed = call.argument("agreed");
-                TencentLocationManager.setUserAgreePrivacy(Boolean.TRUE.equals(agreed));
-                if (Boolean.TRUE.equals(agreed) && !logForwarderInstalled) {
-                    // 首次同意隐私后补装日志转发器（attach 时若隐私未同意会装载失败）
-                    installSdkLogForwarder();
-                }
+                boolean agreed = Boolean.TRUE.equals(call.argument("agreed"));
+                if (!agreed) dispose();
+                TencentLocationManager.setUserAgreePrivacy(agreed);
+                if (agreed) installSdkLogForwarder();
                 result.success(null);
                 return true;
             }
@@ -153,6 +149,8 @@ public class SdkHandler {
             if (deviceId != null && !deviceId.isEmpty()) {
                 TencentLocationManager.getInstance(appContext).setDeviceID(appContext, deviceId);
             }
+            initialized = true;
+            installSdkLogForwarder();
             result.success(null);
         } catch (Exception t) {
             Errors.code(result, Errors.SDK_INIT_FAILED,
@@ -167,6 +165,7 @@ public class SdkHandler {
         try {
             return TencentLocationManager.getInstance(appContext).getVersion();
         } catch (Exception t) {
+            Log.e("SdkHandler", "Failed to read Tencent SDK version", t);
             return "";
         }
     }
@@ -176,6 +175,7 @@ public class SdkHandler {
         try {
             return TencentLocationManager.getInstance(appContext).getBuild();
         } catch (Exception t) {
+            Log.e("SdkHandler", "Failed to read Tencent SDK build number", t);
             return "";
         }
     }
@@ -185,41 +185,33 @@ public class SdkHandler {
         try {
             return TencentLocationManager.getInstance(appContext).getOaid();
         } catch (Exception t) {
+            Log.e("SdkHandler", "Failed to read Tencent SDK OAID", t);
             return "";
         }
     }
 
-    /**
-     * 安装 SDK 日志转发器。
-     *
-     * <p>插件 attach 时调用一次；若彼时隐私尚未同意，SDK 内部会抛异常导致装载失败，
-     * 此处吞掉异常并保留 {@link #logForwarderInstalled} 为 {@code false}，
-     * 等用户调用 {@code setPrivacyPolicyAgreement(true)} 后再补装一次（幂等）。
-     */
     private void installSdkLogForwarder() {
-        if (logListener == null) {
-            logListener = (level, log) -> {
+        // 注册会创建 SDK 实例，需要先设置 Key 并取得隐私同意。
+        if (!initialized || logForwarderInstalled || !TencentLocationManager.getUserAgreePrivacy()) return;
+        try {
+            TencentLocationManager.getInstance(appContext).setSDKLogListener((level, log) -> {
                 Map<String, Object> payload = new LinkedHashMap<>();
                 payload.put("level", level);
                 payload.put("log", log == null ? "" : log);
                 dispatcher.sendStatus("onSdkLog", null, payload);
-            };
-        }
-        try {
-            TencentLocationManager.getInstance(appContext).setSDKLogListener(logListener);
+            });
             logForwarderInstalled = true;
         } catch (Exception e) {
-            logForwarderInstalled = false;
-        
-            android.util.Log.e("SdkHandler", "Exception ignored", e);
+            Log.e("SdkHandler", "Failed to install Tencent SDK log listener", e);
         }
     }
 
     public void dispose() {
+        if (!logForwarderInstalled) return;
         try {
             TencentLocationManager.getInstance(appContext).setSDKLogListener(null);
         } catch (Exception e) {
-            android.util.Log.e("SdkHandler", "Exception ignored", e);
+            Log.e("SdkHandler", "Failed to remove Tencent SDK log listener", e);
         }
         logForwarderInstalled = false;
     }
