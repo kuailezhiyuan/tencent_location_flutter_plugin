@@ -1,12 +1,2 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
-
-    <application>
-        <!-- Tencent Location SDK 7.6.1.8 binds this service in enableForegroundLocation. -->
-        <service
-            android:name="com.tencent.map.geolocation.s"
-            android:exported="false"
-            android:foregroundServiceType="location" />
-    </application>
 </manifest>

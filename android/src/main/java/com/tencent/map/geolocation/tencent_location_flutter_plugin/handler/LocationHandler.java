@@ -1,19 +1,15 @@
 package com.tencent.map.geolocation.tencent_location_flutter_plugin.handler;
 
-import android.Manifest;
+import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.content.Context;
-import android.content.pm.PackageManager;
 import android.os.Build;
-import android.os.Handler;
 import android.os.Looper;
-import android.util.Log;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.core.app.NotificationCompat;
-import androidx.core.content.ContextCompat;
 
 import com.tencent.map.geolocation.TencentLocation;
 import com.tencent.map.geolocation.TencentLocationListener;
@@ -26,11 +22,13 @@ import com.tencent.map.geolocation.tencent_location_flutter_plugin.registry.Loca
 import com.tencent.map.geolocation.tencent_location_flutter_plugin.registry.LocationManagerRegistry;
 import com.tencent.map.geolocation.tencent_location_flutter_plugin.util.Errors;
 
-import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Map;
-import java.util.Set;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 import io.flutter.plugin.common.MethodCall;
 import io.flutter.plugin.common.MethodChannel.Result;
@@ -40,14 +38,9 @@ import io.flutter.plugin.common.MethodChannel.Result;
  */
 public class LocationHandler {
 
-    // The SDK foreground service is process-wide. Method calls run on the main looper.
-    private static final Set<LocationManagerEntry> FOREGROUND_OWNERS = new HashSet<>();
-
     private final Context appContext;
     private final EventDispatcher dispatcher;
     private final LocationManagerRegistry registry;
-    private final Handler mainHandler = new Handler(Looper.getMainLooper());
-    private final Set<SingleLocation> singleLocations = new HashSet<>();
 
     /** 用每个 managerId 启动定位时选择的 scene（null = 非场景化）。 */
     private final Map<String, Integer> sceneByManager = new HashMap<>();
@@ -155,7 +148,8 @@ public class LocationHandler {
             case "location.android.disableForeground": {
                 Boolean removeNotification = call.argument("removeNotification");
                 try {
-                    disableForeground(entry, removeNotification == null || removeNotification);
+                    TencentLocationManager.getInstance(appContext).disableForegroundLocation(
+                            removeNotification == null ? true : removeNotification);
                     result.success(null);
                 } catch (Exception t) {
                     Errors.native_(result, "disableForeground failed: " + t, t);
@@ -193,17 +187,6 @@ public class LocationHandler {
     }
 
     private void disposeManagerInternal(@NonNull LocationManagerEntry entry) {
-        for (SingleLocation pending : new ArrayList<>(singleLocations)) {
-            if (pending.entry == entry) {
-                pending.cancel(Errors.LOCATION_FAILED, "Location manager was disposed");
-            }
-        }
-        try {
-            disableForeground(entry, true);
-        } catch (Exception e) {
-            Log.e("LocationHandler", "Failed to disable foreground location for " + entry.getManagerId(), e);
-            FOREGROUND_OWNERS.remove(entry);
-        }
         Integer scene = sceneByManager.remove(entry.getManagerId());
         try {
             if (scene != null) {
@@ -212,12 +195,12 @@ public class LocationHandler {
                 TencentLocationManager.getInstance(appContext).removeUpdates(entry.getListener());
             }
         } catch (Exception e) {
-            Log.e("LocationHandler", "Failed to stop continuous location for " + entry.getManagerId(), e);
+            android.util.Log.e("LocationHandler", "Exception ignored", e);
         }
         try {
             TencentLocationManager.getInstance(appContext).removeLocationListener(entry.getListener());
         } catch (Exception e) {
-            Log.e("LocationHandler", "Failed to remove location listener for " + entry.getManagerId(), e);
+            android.util.Log.e("LocationHandler", "Exception ignored", e);
         }
         // 显式重置内部连续定位标志，让 entry 在被回收前状态干净；
         // 万一 entry 被外部引用 / 单测复用时不会读到陈旧的 true。
@@ -315,73 +298,63 @@ public class LocationHandler {
             return;
         }
 
-        SingleLocation pending = new SingleLocation(entry, result);
-        singleLocations.add(pending);
-        mainHandler.postDelayed(pending.timeout, timeoutMs);
-        try {
-            int ret = TencentLocationManager.getInstance(appContext).requestSingleFreshLocation(
-                    request, pending.listener, Looper.getMainLooper());
-            if (ret != 0 && pending.finish()) {
-                Errors.code(result, mapRetToErrorCode(ret),
-                        "requestSingleFreshLocation returned " + ret, ret);
-            }
-        } catch (Exception e) {
-            if (pending.finish()) {
-                pending.removeListener();
-                Errors.native_(result, "Failed to request single location", e);
-            } else {
-                Log.e("LocationHandler", "Single location request failed after completion", e);
-            }
-        }
-    }
+        final CountDownLatch latch = new CountDownLatch(1);
+        final AtomicReference<TencentLocation> locationRef = new AtomicReference<>();
+        final AtomicInteger errorCodeRef = new AtomicInteger(0);
+        final AtomicReference<String> errorReasonRef = new AtomicReference<>("");
+        final AtomicBoolean delivered = new AtomicBoolean(false);
 
-    private final class SingleLocation {
-        final LocationManagerEntry entry;
-        final Result result;
-        final TencentLocationListener listener = LocationManagerEntry.createSingleListener(this::onLocation);
-        final Runnable timeout = () -> cancel(Errors.TIMEOUT, "Single location timed out");
+        TencentLocationListener oneShotListener =
+                LocationManagerEntry.createSingleListener((location, error, reason) -> {
+                    if (!delivered.compareAndSet(false, true)) return;
+                    if (error == TencentLocation.ERROR_OK) {
+                        locationRef.set(location);
+                    } else {
+                        errorCodeRef.set(error);
+                        errorReasonRef.set(reason == null ? "" : reason);
+                    }
+                    latch.countDown();
+                });
 
-        SingleLocation(LocationManagerEntry entry, Result result) {
-            this.entry = entry;
-            this.result = result;
+        int ret = TencentLocationManager.getInstance(appContext).requestSingleFreshLocation(
+                request, oneShotListener, Looper.getMainLooper());
+        if (ret != 0) {
+            Errors.code(result, mapRetToErrorCode(ret),
+                    "requestSingleFreshLocation returned " + ret, ret);
+            return;
         }
 
-        private boolean finish() {
-            if (!singleLocations.remove(this)) return false;
-            mainHandler.removeCallbacks(timeout);
-            return true;
-        }
-
-        private void onLocation(TencentLocation location, int error, String reason) {
-            if (!finish()) return;
-            if (error != TencentLocation.ERROR_OK || location == null) {
-                Errors.code(result, Errors.LOCATION_FAILED,
-                        "Single location failed: " + (reason == null ? "" : reason), error);
-                return;
-            }
-            Map<String, Object> data;
+        final long effectiveTimeout = timeoutMs;
+        new Thread(() -> {
             try {
-                data = LocationCodec.toMap(location);
-            } catch (Exception e) {
-                Errors.native_(result, "Failed to encode single location", e);
-                return;
+                boolean ok = latch.await(effectiveTimeout, TimeUnit.MILLISECONDS);
+                if (!ok) {
+                    // 超时兜底：主动摘除一次性 listener，避免延迟回调泄漏
+                    try {
+                        TencentLocationManager.getInstance(appContext).removeUpdates(oneShotListener);
+                    } catch (Exception e) {
+            android.util.Log.e("LocationHandler", "Exception ignored", e);
+        }
+                    postOnUi(() -> Errors.code(result, Errors.TIMEOUT,
+                            "single location timeout", null));
+                    return;
+                }
+                TencentLocation loc = locationRef.get();
+                if (loc != null) {
+                    Map<String, Object> map = LocationCodec.toMap(loc);
+                    postOnUi(() -> result.success(map));
+                } else {
+                    final int errorCode = errorCodeRef.get();
+                    final String message = errorReasonRef.get();
+                    postOnUi(() -> Errors.code(result, Errors.LOCATION_FAILED,
+                            "single location failed: " + message, errorCode));
+                }
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                postOnUi(() -> Errors.native_(result,
+                        "single location interrupted", e));
             }
-            result.success(data);
-        }
-
-        private void cancel(String code, String message) {
-            if (!finish()) return;
-            removeListener();
-            Errors.code(result, code, message, null);
-        }
-
-        private void removeListener() {
-            try {
-                TencentLocationManager.getInstance(appContext).removeUpdates(listener);
-            } catch (Exception e) {
-                Log.e("LocationHandler", "Failed to remove single location listener for " + entry.getManagerId(), e);
-            }
-        }
+        }, "tencent-loc-single").start();
     }
 
     // ---------- 最近位置 ----------
@@ -411,50 +384,28 @@ public class LocationHandler {
         String text = call.argument("text");
         String smallIconResourceName = call.argument("smallIconResourceName");
 
-        if (notificationId == null || notificationId <= 0 || channelId == null || channelId.isEmpty()
+        if (notificationId == null || notificationId <= 0 || channelId == null
                 || title == null || text == null) {
             Errors.invalidArgument(result,
                     "notificationId(>0), channelId, title, text are required");
             return;
         }
-        if (!TencentLocationManager.getUserAgreePrivacy()) {
-            Errors.code(result, Errors.PRIVACY_NOT_AGREED, "Location privacy policy has not been accepted", null);
-            return;
-        }
-        if (ContextCompat.checkSelfPermission(appContext, Manifest.permission.ACCESS_FINE_LOCATION)
-                != PackageManager.PERMISSION_GRANTED
-                && ContextCompat.checkSelfPermission(appContext, Manifest.permission.ACCESS_COARSE_LOCATION)
-                != PackageManager.PERMISSION_GRANTED) {
-            Errors.code(result, Errors.PERMISSION_DENIED, "Foreground location requires location permission", null);
-            return;
-        }
         try {
-            if (FOREGROUND_OWNERS.isEmpty()) {
-                ensureNotificationChannel(channelId);
-                int icon = resolveDrawable(smallIconResourceName);
-                if (icon == 0) icon = appContext.getApplicationInfo().icon;
-                TencentLocationManager.getInstance(appContext).enableForegroundLocation(notificationId,
-                        new NotificationCompat.Builder(appContext, channelId)
-                                .setContentTitle(title)
-                                .setContentText(text)
-                                .setOngoing(true)
-                                .setPriority(NotificationCompat.PRIORITY_LOW)
-                                .setSmallIcon(icon != 0 ? icon : android.R.drawable.ic_menu_mylocation)
-                                .build());
-            }
-            FOREGROUND_OWNERS.add(entry);
+            ensureNotificationChannel(channelId);
+            int iconResId = resolveDrawable(smallIconResourceName);
+            NotificationCompat.Builder builder =
+                    new NotificationCompat.Builder(appContext, channelId)
+                            .setContentTitle(title)
+                            .setContentText(text)
+                            .setOngoing(true)
+                            .setPriority(NotificationCompat.PRIORITY_LOW);
+            if (iconResId != 0) builder.setSmallIcon(iconResId);
+            Notification notification = builder.build();
+            TencentLocationManager.getInstance(appContext).enableForegroundLocation(notificationId, notification);
             result.success(null);
         } catch (Exception t) {
             Errors.native_(result, "enableForeground failed: " + t, t);
         }
-    }
-
-    private void disableForeground(LocationManagerEntry entry, boolean removeNotification) {
-        if (!FOREGROUND_OWNERS.contains(entry)) return;
-        if (FOREGROUND_OWNERS.size() == 1) {
-            TencentLocationManager.getInstance(appContext).disableForegroundLocation(removeNotification);
-        }
-        FOREGROUND_OWNERS.remove(entry);
     }
 
     private void ensureNotificationChannel(@NonNull String channelId) {
@@ -502,7 +453,7 @@ public class LocationHandler {
                 TencentLocationManager.getInstance(appContext).setCoordinateType(coord);
             }
         } catch (Exception e) {
-            Log.e("LocationHandler", "Failed to set Tencent location coordinate type to " + wire, e);
+            android.util.Log.e("LocationHandler", "Exception ignored", e);
         }
     }
 
@@ -526,4 +477,7 @@ public class LocationHandler {
         }
     }
 
+    private void postOnUi(@NonNull Runnable r) {
+        new android.os.Handler(Looper.getMainLooper()).post(r);
+    }
 }
