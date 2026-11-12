@@ -53,6 +53,13 @@ final class EventDispatcher {
 
     // MARK: - send
 
+    func sendSmart(type: String, data: [String: Any?]) {
+        guard let sink = statusHandler.sink else { return }
+        DispatchQueue.main.async {
+            sink(["type": type, "data": data.compactMapValues { $0 }])
+        }
+    }
+
     func sendLocation(event: String, managerId: String, payload: [String: Any?]) {
         send(channel: .location, top: ["managerId": managerId], event: event, payload: payload)
     }

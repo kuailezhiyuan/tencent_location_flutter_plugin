@@ -21,9 +21,12 @@ import com.tencent.map.geolocation.tencent_location_flutter_plugin.event.EventDi
 import com.tencent.map.geolocation.tencent_location_flutter_plugin.registry.LocationManagerEntry;
 import com.tencent.map.geolocation.tencent_location_flutter_plugin.registry.LocationManagerRegistry;
 import com.tencent.map.geolocation.tencent_location_flutter_plugin.util.Errors;
+import com.tencent.map.geolocation.tencent_location_flutter_plugin.smart.SmartTrackingService;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -41,6 +44,8 @@ public class LocationHandler {
     private final Context appContext;
     private final EventDispatcher dispatcher;
     private final LocationManagerRegistry registry;
+    private static final AtomicInteger activeSingleRequests = new AtomicInteger();
+    private static final Set<LocationManagerEntry> activeContinuousRequests = ConcurrentHashMap.newKeySet();
 
     /** 用每个 managerId 启动定位时选择的 scene（null = 非场景化）。 */
     private final Map<String, Integer> sceneByManager = new HashMap<>();
@@ -95,6 +100,14 @@ public class LocationHandler {
         if (entry == null) {
             Errors.code(result, Errors.NATIVE_ERROR,
                     "Location manager not found: " + managerId, null);
+            return true;
+        }
+
+        if (SmartTrackingService.isEnabled(appContext)
+                && (method.equals("location.startContinuous") || method.equals("location.startSingle")
+                || method.equals("location.changeCallbackInterval") || method.equals("location.android.enableForeground")
+                || method.equals("location.android.disableForeground"))) {
+            Errors.code(result, Errors.ALREADY_STARTED, "The native Smart session owns the Tencent location request", null);
             return true;
         }
 
@@ -172,6 +185,11 @@ public class LocationHandler {
 
     // ---------- 生命周期 ----------
 
+    public boolean hasActiveLocationRequests() {
+        if (activeSingleRequests.get() > 0) return true;
+        return !activeContinuousRequests.isEmpty();
+    }
+
     public void disposeAll() {
         for (LocationManagerEntry entry : registry.all()) {
             disposeManagerInternal(entry);
@@ -195,16 +213,17 @@ public class LocationHandler {
                 TencentLocationManager.getInstance(appContext).removeUpdates(entry.getListener());
             }
         } catch (Exception e) {
-            android.util.Log.e("LocationHandler", "Exception ignored", e);
+            android.util.Log.e("LocationHandler", "Removing ordinary Tencent request during manager disposal failed", e);
         }
         try {
             TencentLocationManager.getInstance(appContext).removeLocationListener(entry.getListener());
         } catch (Exception e) {
-            android.util.Log.e("LocationHandler", "Exception ignored", e);
+            android.util.Log.e("LocationHandler", "Removing ordinary Tencent listener during manager disposal failed", e);
         }
         // 显式重置内部连续定位标志，让 entry 在被回收前状态干净；
         // 万一 entry 被外部引用 / 单测复用时不会读到陈旧的 true。
         entry.markContinuous(false);
+        activeContinuousRequests.remove(entry);
     }
 
     // ---------- 连续定位 ----------
@@ -238,6 +257,7 @@ public class LocationHandler {
                 return;
             }
             entry.markContinuous(true);
+            activeContinuousRequests.add(entry);
             result.success(null);
         } catch (Exception t) {
             Errors.native_(result, "startContinuous failed: " + t, t);
@@ -254,6 +274,7 @@ public class LocationHandler {
                 TencentLocationManager.getInstance(appContext).removeUpdates(entry.getListener());
             }
             entry.markContinuous(false);
+            activeContinuousRequests.remove(entry);
             result.success(null);
         } catch (Exception t) {
             Errors.native_(result, "stopContinuous failed: " + t, t);
@@ -325,6 +346,7 @@ public class LocationHandler {
         }
 
         final long effectiveTimeout = timeoutMs;
+        activeSingleRequests.incrementAndGet();
         new Thread(() -> {
             try {
                 boolean ok = latch.await(effectiveTimeout, TimeUnit.MILLISECONDS);
@@ -333,8 +355,8 @@ public class LocationHandler {
                     try {
                         TencentLocationManager.getInstance(appContext).removeUpdates(oneShotListener);
                     } catch (Exception e) {
-            android.util.Log.e("LocationHandler", "Exception ignored", e);
-        }
+                        android.util.Log.e("LocationHandler", "Removing timed-out single Tencent request failed", e);
+                    }
                     postOnUi(() -> Errors.code(result, Errors.TIMEOUT,
                             "single location timeout", null));
                     return;
@@ -353,6 +375,8 @@ public class LocationHandler {
                 Thread.currentThread().interrupt();
                 postOnUi(() -> Errors.native_(result,
                         "single location interrupted", e));
+            } finally {
+                activeSingleRequests.decrementAndGet();
             }
         }, "tencent-loc-single").start();
     }
@@ -453,7 +477,7 @@ public class LocationHandler {
                 TencentLocationManager.getInstance(appContext).setCoordinateType(coord);
             }
         } catch (Exception e) {
-            android.util.Log.e("LocationHandler", "Exception ignored", e);
+            android.util.Log.e("LocationHandler", "Applying Tencent process-wide coordinate type failed", e);
         }
     }
 

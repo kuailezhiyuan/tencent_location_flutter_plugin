@@ -1,0 +1,24 @@
+Tracelet-derived Smart tracking code
+
+Source: https://github.com/kuailezhiyuan/Tracelet
+Revision: 071cd0bebe9937816470e306c583651bf64d20a2
+Upstream: https://github.com/Ikolvi/Tracelet
+License: Apache License 2.0 (included as LICENSE)
+Copyright and author notices: NOTICE
+
+The Android and iOS Smart motion implementations adapt the following sources:
+- sdk/android/tracelet-sdk/src/main/kotlin/com/ikolvi/tracelet/sdk/motion/MotionDetector.kt
+- sdk/android/tracelet-sdk/src/main/kotlin/com/ikolvi/tracelet/sdk/motion/SpeedMotionManager.kt
+- sdk/android/tracelet-sdk/src/main/kotlin/com/ikolvi/tracelet/sdk/motion/SmartMotionCoordinator.kt
+- sdk/android/tracelet-sdk/src/main/kotlin/com/ikolvi/tracelet/sdk/service/LocationService.kt
+- sdk/ios/Sources/TraceletSDK/motion/MotionDetector.swift
+- sdk/ios/Sources/TraceletSDK/motion/SpeedMotionManager.swift
+- sdk/ios/Sources/TraceletSDK/SmartMotionCoordinator.swift
+- sdk/rust-core/core/src/state/smart_motion_coordinator.rs
+
+Modified for this plugin: platform adapters call the Tencent location SDK;
+the small Rust state coordinator is translated into Java and Swift.
+No Rust source, runtime, FFI binding, or Tracelet binary is required.
+Only continuous stationary High/Low tracking is ported. Periodic/geofence
+tracking, driving classification, sync and a persistent point queue are not
+part of this port. The rest of this repository retains its existing license.

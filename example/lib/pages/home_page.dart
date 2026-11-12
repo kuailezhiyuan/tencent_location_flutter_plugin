@@ -10,8 +10,9 @@ import '../state/request_holder.dart';
 import 'geofence_tab.dart';
 import 'location_tab.dart';
 import 'utils_tab.dart';
+import 'smart_tracking_tab.dart';
 
-/// Demo 主页：顶部 AppBar 放 SDK 版本 / init 按钮；下方 3 个 Tab。
+/// Demo 主页：SDK 初始化，以及普通定位 / 工具 / 围栏 / Smart 测试。
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
 
@@ -44,7 +45,9 @@ class _HomePageState extends State<HomePage> {
       final b = await TencentLocationSDK.getBuildVersion();
       if (!mounted) return;
       setState(() => _sdkVersion = '$v ($b)');
-    } catch (e) {
+    } catch (e, stack) {
+      debugPrint('Demo: reading SDK version failed: $e');
+      debugPrintStack(stackTrace: stack);
       if (!mounted) return;
       setState(() => _sdkVersion = 'N/A');
     }
@@ -63,22 +66,24 @@ class _HomePageState extends State<HomePage> {
       if (!kIsWeb && (Platform.isAndroid || Platform.isIOS)) {
         final status = await Permission.locationWhenInUse.request();
         if (!status.isGranted) {
-          msg.showSnackBar(SnackBar(
-              content: Text('⚠️ 未授权定位权限 (status=$status)，请到系统设置开启')));
+          msg.showSnackBar(
+              SnackBar(content: Text('⚠️ 未授权定位权限 (status=$status)，请到系统设置开启')));
           return;
         }
       } else if (isHarmony) {
-        const channel = MethodChannel('com.tencent.map.geolocation.flutter/method');
+        const channel =
+            MethodChannel('com.tencent.map.geolocation.flutter/method');
         final granted = await channel
             .invokeMethod<bool>('sdk.harmony.requestLocationAuthorization');
         if (granted != true) {
-          msg.showSnackBar(const SnackBar(
-              content: Text('⚠️ 未授权定位权限，请到系统设置开启')));
+          msg.showSnackBar(
+              const SnackBar(content: Text('⚠️ 未授权定位权限，请到系统设置开启')));
           return;
         }
       }
 
       await TencentLocationSDK.setPrivacyPolicyAgreement(true);
+      if (!mounted) return;
       setState(() => _privacyAgreed = true);
 
       // 开 SDK 本地日志：必须在 init 之前调用。
@@ -88,7 +93,7 @@ class _HomePageState extends State<HomePage> {
         await TencentLocationSDK.enableLogToFile(true);
       }
 
-      // ⚠️ 真机运行前请在下面填写你自己的 ApiKey。
+      // 真机运行前通过 --dart-define 传入绑定包名和签名的 ApiKey。
       await TencentLocationSDK.init(
         androidApiKey: _kAndroidApiKey.isEmpty ? null : _kAndroidApiKey,
         iosApiKey: _kIosApiKey.isEmpty ? null : _kIosApiKey,
@@ -101,9 +106,13 @@ class _HomePageState extends State<HomePage> {
         await TencentLocationSDK.requestIosWhenInUseAuthorization();
       }
 
+      if (!mounted) return;
       setState(() => _initDone = true);
       msg.showSnackBar(const SnackBar(content: Text('✅ init 成功')));
-    } catch (e) {
+    } catch (e, stack) {
+      debugPrint('Demo: initializing Tencent SDK failed: $e');
+      debugPrintStack(stackTrace: stack);
+      if (!mounted) return;
       msg.showSnackBar(SnackBar(content: Text('init 失败: $e')));
     }
   }
@@ -111,7 +120,7 @@ class _HomePageState extends State<HomePage> {
   @override
   Widget build(BuildContext context) {
     return DefaultTabController(
-      length: 3,
+      length: 4,
       child: Scaffold(
         appBar: AppBar(
           title: Column(
@@ -120,7 +129,8 @@ class _HomePageState extends State<HomePage> {
               const Text('Tencent Location Demo'),
               Text(
                 'SDK $_sdkVersion',
-                style: const TextStyle(fontSize: 11, fontWeight: FontWeight.normal),
+                style: const TextStyle(
+                    fontSize: 11, fontWeight: FontWeight.normal),
               ),
             ],
           ),
@@ -131,8 +141,8 @@ class _HomePageState extends State<HomePage> {
                 child: _initDone
                     ? const Chip(
                         avatar: Icon(Icons.check, size: 16),
-                        label: Text('Init Done',
-                            style: TextStyle(fontSize: 12)),
+                        label:
+                            Text('Init Done', style: TextStyle(fontSize: 12)),
                         visualDensity: VisualDensity.compact,
                       )
                     : FilledButton.icon(
@@ -140,8 +150,7 @@ class _HomePageState extends State<HomePage> {
                         icon: const Icon(Icons.play_arrow, size: 16),
                         label: const Text('Init'),
                         style: FilledButton.styleFrom(
-                          padding:
-                              const EdgeInsets.symmetric(horizontal: 12),
+                          padding: const EdgeInsets.symmetric(horizontal: 12),
                         ),
                       ),
               ),
@@ -151,6 +160,7 @@ class _HomePageState extends State<HomePage> {
             Tab(icon: Icon(Icons.my_location), text: '定位'),
             Tab(icon: Icon(Icons.calculate_outlined), text: '工具'),
             Tab(icon: Icon(Icons.fence), text: '围栏'),
+            Tab(icon: Icon(Icons.sensors), text: 'Smart'),
           ]),
         ),
         body: Column(
@@ -158,8 +168,8 @@ class _HomePageState extends State<HomePage> {
             if (!_privacyAgreed)
               Container(
                 color: Colors.amber.shade100,
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 12, vertical: 8),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                 child: const Row(
                   children: [
                     Icon(Icons.warning_amber, size: 18),
@@ -179,6 +189,7 @@ class _HomePageState extends State<HomePage> {
                   LocationTab(holder: _holder),
                   const UtilsTab(),
                   const GeofenceTab(),
+                  SmartTrackingTab(initialized: _initDone),
                 ],
               ),
             ),
@@ -189,7 +200,9 @@ class _HomePageState extends State<HomePage> {
   }
 }
 
-// 真机运行时请替换为你自己的 ApiKey。
-const String _kAndroidApiKey = 'EXLBZ-B7TH5-CTZIK-QNQFR-76OGO-GNFCS';
-const String _kIosApiKey = '7WZBZ-KRGHK-3WGJP-ATMLL-UO7C6-T6BEW';
-const String _kHarmonyApiKey = 'YOUR_HARMONY_API_KEY';
+// 通过 --dart-define 传入腾讯 Key；Android/Harmony 的空值可使用原生配置。
+const String _kAndroidApiKey =
+    String.fromEnvironment('TENCENT_ANDROID_API_KEY');
+const String _kIosApiKey = String.fromEnvironment('TENCENT_IOS_API_KEY');
+const String _kHarmonyApiKey =
+    String.fromEnvironment('TENCENT_HARMONY_API_KEY');

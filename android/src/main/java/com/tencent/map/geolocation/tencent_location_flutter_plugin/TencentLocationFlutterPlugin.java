@@ -9,6 +9,8 @@ import com.tencent.map.geolocation.tencent_location_flutter_plugin.handler.Geofe
 import com.tencent.map.geolocation.tencent_location_flutter_plugin.handler.LocationHandler;
 import com.tencent.map.geolocation.tencent_location_flutter_plugin.handler.SdkHandler;
 import com.tencent.map.geolocation.tencent_location_flutter_plugin.handler.UtilsHandler;
+import com.tencent.map.geolocation.tencent_location_flutter_plugin.handler.SmartTrackingHandler;
+import com.tencent.map.geolocation.tencent_location_flutter_plugin.smart.SmartTrackingService;
 import com.tencent.map.geolocation.tencent_location_flutter_plugin.registry.GeofenceManagerRegistry;
 import com.tencent.map.geolocation.tencent_location_flutter_plugin.registry.LocationManagerRegistry;
 
@@ -34,6 +36,7 @@ public class TencentLocationFlutterPlugin implements FlutterPlugin, MethodCallHa
     private LocationHandler locationHandler;
     private GeofenceHandler geofenceHandler;
     private UtilsHandler utilsHandler;
+    private SmartTrackingHandler smartHandler;
 
     @Override
     public void onAttachedToEngine(@NonNull FlutterPluginBinding binding) {
@@ -51,11 +54,17 @@ public class TencentLocationFlutterPlugin implements FlutterPlugin, MethodCallHa
         locationHandler = new LocationHandler(appContext, eventDispatcher, locRegistry);
         geofenceHandler = new GeofenceHandler(appContext, eventDispatcher, geoRegistry);
         utilsHandler = new UtilsHandler(appContext);
+        smartHandler = new SmartTrackingHandler(appContext, locationHandler);
+        SmartTrackingService.attach(eventDispatcher);
     }
 
     @Override
     public void onMethodCall(@NonNull MethodCall call, @NonNull Result result) {
         String method = call.method == null ? "" : call.method;
+        if (method.startsWith("smart.")) {
+            if (!smartHandler.handle(call, result)) result.notImplemented();
+            return;
+        }
         if (method.startsWith("sdk.")) {
             if (!sdkHandler.handle(call, result)) result.notImplemented();
             return;
@@ -94,7 +103,9 @@ public class TencentLocationFlutterPlugin implements FlutterPlugin, MethodCallHa
             sdkHandler.dispose();
             sdkHandler = null;
         }
+        smartHandler = null;
         if (eventDispatcher != null) {
+            SmartTrackingService.detach(eventDispatcher);
             eventDispatcher.dispose();
             eventDispatcher = null;
         }

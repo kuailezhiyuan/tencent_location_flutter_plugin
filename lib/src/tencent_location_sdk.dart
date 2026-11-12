@@ -1,5 +1,8 @@
 import 'enums/ios_enums.dart';
 import 'models/tencent_sdk_log_event.dart';
+import 'models/tencent_location.dart';
+import 'models/tencent_location_request.dart';
+import 'models/tencent_smart_tracking.dart';
 import 'platform_interface/tencent_location_platform.dart';
 
 /// 腾讯定位 SDK 的全局入口。所有全局设置都在此类。
@@ -116,7 +119,8 @@ abstract class TencentLocationSDK {
   ///
   /// **Parameters**:
   /// - [enabled]：`true` 开启日志文件写入，`false` 关闭。
-  static Future<void> enableLogToFile(bool enabled) => _platform.enableLogToFile(enabled);
+  static Future<void> enableLogToFile(bool enabled) =>
+      _platform.enableLogToFile(enabled);
 
   /// RTK 日志开关。
   ///
@@ -139,7 +143,54 @@ abstract class TencentLocationSDK {
   ///
   /// **Returns**:
   /// - SDK 内部运行日志的事件流，用于排查问题。
-  static Stream<TencentSdkLogEvent> get onSdkLogChanged => _platform.onSdkLogChanged;
+  static Stream<TencentSdkLogEvent> get onSdkLogChanged =>
+      _platform.onSdkLogChanged;
+
+  // ==================== 原生 Smart 后台定位 ====================
+
+  /// 开始唯一的 app-wide Smart 会话（Android / iOS）。
+  ///
+  /// 两个 request 都由腾讯 SDK 执行；Dart 不参与动静判定或后台计时。
+  /// 调用前需完成 SDK 初始化、精确与后台定位授权，并配置平台后台能力。
+  /// Smart 与普通连续定位互斥；已有连续定位时先停止它。
+  /// 两档坐标系必须一致；Android 不支持 scene，且与普通单次定位也互斥。
+  /// iOS 两档后台开关须一致，距离过滤须为 null / <= 0；为维持后台连续更新，
+  /// 原生层禁用自动暂停，始终授权时将请求精度下限维持在百米档。
+  ///
+  /// Android 使用原生前台服务和 START_STICKY，恢复仍受系统 / OEM 策略约束；
+  /// 不自动开机录制。iOS 不保证用户强退后继续运行。
+  static Future<void> startSmartTracking({
+    required TencentLocationRequest movingRequest,
+    required TencentLocationRequest stationaryRequest,
+    TencentSmartTrackingConfig config = const TencentSmartTrackingConfig(),
+  }) =>
+      _platform.startSmartTracking(
+        movingRequest: movingRequest,
+        stationaryRequest: stationaryRequest,
+        config: config,
+      );
+
+  /// 显式结束原生 Smart 会话。取消事件订阅或关闭页面不会调用此方法。
+  static Future<void> stopSmartTracking() => _platform.stopSmartTracking();
+
+  /// 读取原生状态；可在 Flutter 重开后查询此前仍运行的会话。
+  static Future<TencentSmartTrackingState> getSmartTrackingState() =>
+      _platform.getSmartTrackingState();
+
+  /// 有界、持久化的原生 Smart 诊断日志（JSONL），不是定位点回放队列。
+  static Future<String> getSmartTrackingLog() =>
+      _platform.getSmartTrackingLog();
+
+  static Future<void> clearSmartTrackingLog() =>
+      _platform.clearSmartTrackingLog();
+
+  /// 动静及已应用档位变化。取消订阅不停止后台会话。
+  static Stream<TencentSmartTrackingState> get onSmartTrackingChanged =>
+      _platform.onSmartTrackingChanged;
+
+  /// Smart 会话的实时腾讯定位结果；Flutter 离线期间不缓冲回放。
+  static Stream<TencentLocation> get onSmartLocationChanged =>
+      _platform.onSmartLocationChanged;
 
   // ==================== 其它全局配置 ====================
 

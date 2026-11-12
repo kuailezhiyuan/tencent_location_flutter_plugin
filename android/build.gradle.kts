@@ -85,6 +85,7 @@ dependencies {
     implementation("androidx.annotation:annotation:1.9.1")
 
     testImplementation("junit:junit:4.13.2")
+    testImplementation("org.robolectric:robolectric:4.16.1")
     testImplementation("org.mockito:mockito-core:5.14.2")
     // mockito-inline 提供 final 类 / static 方法 mock 能力（用于 TencentLocation / TencentPoi 等）
     testImplementation("org.mockito:mockito-inline:5.2.0")

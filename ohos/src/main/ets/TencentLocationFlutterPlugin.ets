@@ -16,6 +16,7 @@ import { GeofenceHandler } from './Handler/GeofenceHandler'
 import { UtilsHandler } from './Handler/UtilsHandler'
 import { LocationManagerRegistry } from './Registry/LocationManagerRegistry'
 import { GeofenceManagerRegistry } from './Registry/GeofenceManagerRegistry'
+import { Errors } from './Util/Errors'
 
 /**
  * 腾讯定位 SDK Flutter 插件 HarmonyOS 端入口。
@@ -119,6 +120,9 @@ export default class TencentLocationFlutterPlugin implements FlutterPlugin, Meth
       if (handler !== null && handler.handle(method, call, result)) return
     } else if (method.startsWith('utils.')) {
       if (this.utilsHandler.handle(method, call, result)) return
+    } else if (method.startsWith('smart.')) {
+      Errors.unsupported(result, method)
+      return
     }
     result.notImplemented()
   }

@@ -1,6 +1,8 @@
 import 'dart:async';
 
 import 'package:flutter/services.dart';
+import 'package:flutter/foundation.dart'
+    show defaultTargetPlatform, kIsWeb, TargetPlatform;
 
 import '../enums/ios_enums.dart';
 import '../models/tencent_device_orientation.dart';
@@ -12,6 +14,7 @@ import '../models/tencent_location_coordinate.dart';
 import '../models/tencent_location_error.dart';
 import '../models/tencent_location_request.dart';
 import '../models/tencent_sdk_log_event.dart';
+import '../models/tencent_smart_tracking.dart';
 import 'tencent_location_platform.dart';
 
 typedef _NativeLifecycleCallback = Future<void> Function();
@@ -303,6 +306,82 @@ class TencentLocationMethodChannel extends TencentLocationPlatform {
   Stream<TencentSdkLogEvent> get onSdkLogChanged => _statusStream()
       .where((m) => m['event'] == 'onSdkLog')
       .map((m) => TencentSdkLogEvent.fromMap(_payloadOf(m)));
+
+  // ==================== App-wide Smart ====================
+
+  void _requireSmartPlatform() {
+    if (kIsWeb ||
+        (defaultTargetPlatform != TargetPlatform.android &&
+            defaultTargetPlatform != TargetPlatform.iOS)) {
+      throw const TencentLocationError(
+        code: TencentLocationErrorCode.unsupportedOnThisPlatform,
+        message: 'Native Smart tracking is supported on Android and iOS only.',
+      );
+    }
+  }
+
+  Map _smartData(Map event) {
+    final data = event['data'];
+    if (data is! Map) {
+      throw const FormatException('Smart tracking event has no data map.');
+    }
+    return data;
+  }
+
+  @override
+  Future<void> startSmartTracking({
+    required TencentLocationRequest movingRequest,
+    required TencentLocationRequest stationaryRequest,
+    required TencentSmartTrackingConfig config,
+  }) async {
+    _requireSmartPlatform();
+    await _invoke<void>('smart.start', {
+      'movingRequest': movingRequest.toMap(),
+      'stationaryRequest': stationaryRequest.toMap(),
+      'config': config.toMap(),
+    });
+  }
+
+  @override
+  Future<void> stopSmartTracking() async {
+    _requireSmartPlatform();
+    await _invoke<void>('smart.stop');
+  }
+
+  @override
+  Future<TencentSmartTrackingState> getSmartTrackingState() async {
+    _requireSmartPlatform();
+    final map = await _invoke<Map>('smart.getState');
+    return TencentSmartTrackingState.fromMap(map);
+  }
+
+  @override
+  Future<String> getSmartTrackingLog() async {
+    _requireSmartPlatform();
+    return _invoke<String>('smart.getLog');
+  }
+
+  @override
+  Future<void> clearSmartTrackingLog() async {
+    _requireSmartPlatform();
+    await _invoke<void>('smart.clearLog');
+  }
+
+  @override
+  Stream<TencentSmartTrackingState> get onSmartTrackingChanged {
+    _requireSmartPlatform();
+    return _statusStream()
+        .where((event) => event['type'] == 'smartState')
+        .map((event) => TencentSmartTrackingState.fromMap(_smartData(event)));
+  }
+
+  @override
+  Stream<TencentLocation> get onSmartLocationChanged {
+    _requireSmartPlatform();
+    return _statusStream()
+        .where((event) => event['type'] == 'smartLocation')
+        .map((event) => TencentLocation.fromMap(_smartData(event)));
+  }
 
   // ==================== Manager ====================
 

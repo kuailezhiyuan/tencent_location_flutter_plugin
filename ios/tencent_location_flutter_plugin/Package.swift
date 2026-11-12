@@ -26,7 +26,7 @@ let package = Package(
                 .product(name: "FlutterFramework", package: "FlutterFramework")
             ],
             resources: [.process("PrivacyInfo.xcprivacy")],
-            linkerSettings: [.linkedLibrary("c++")]
+            linkerSettings: [.linkedLibrary("c++"), .linkedFramework("CoreMotion")]
         )
     ]
 )

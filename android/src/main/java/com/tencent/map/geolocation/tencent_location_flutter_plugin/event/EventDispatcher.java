@@ -88,6 +88,17 @@ public class EventDispatcher {
         statusSink.send(buildEvent(event, managerId, null, payload));
     }
 
+    /** Smart events are app-wide and remain independent of manager stream lifetimes. */
+    public void sendSmartState(@NonNull Object state) { sendSmart("smartState", state); }
+    public void sendSmartLocation(@NonNull Object location) { sendSmart("smartLocation", location); }
+
+    private void sendSmart(String type, Object data) {
+        Map<String, Object> map = new LinkedHashMap<>();
+        map.put("type", type);
+        map.put("data", data);
+        statusSink.send(map);
+    }
+
     @NonNull
     private Map<String, Object> buildEvent(@NonNull String event,
                                            @Nullable String managerId,

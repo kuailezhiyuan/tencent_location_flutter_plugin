@@ -10,6 +10,7 @@ import '../models/tencent_location_coordinate.dart';
 import '../models/tencent_location_error.dart';
 import '../models/tencent_location_request.dart';
 import '../models/tencent_sdk_log_event.dart';
+import '../models/tencent_smart_tracking.dart';
 import 'tencent_location_method_channel.dart';
 
 /// 腾讯定位 SDK Flutter 插件的 Platform Interface。
@@ -76,6 +77,33 @@ abstract class TencentLocationPlatform extends PlatformInterface {
 
   /// SDK 内部运行日志（🅰️ 仅 Android 有）。
   Stream<TencentSdkLogEvent> get onSdkLogChanged;
+
+  // ==================== App-wide Smart（Android / iOS）====================
+
+  Future<void> startSmartTracking({
+    required TencentLocationRequest movingRequest,
+    required TencentLocationRequest stationaryRequest,
+    required TencentSmartTrackingConfig config,
+  }) =>
+      throw UnimplementedError('Native Smart tracking is not implemented.');
+
+  Future<void> stopSmartTracking() =>
+      throw UnimplementedError('Native Smart tracking is not implemented.');
+
+  Future<TencentSmartTrackingState> getSmartTrackingState() =>
+      throw UnimplementedError('Native Smart tracking is not implemented.');
+
+  Future<String> getSmartTrackingLog() =>
+      throw UnimplementedError('Native Smart tracking is not implemented.');
+
+  Future<void> clearSmartTrackingLog() =>
+      throw UnimplementedError('Native Smart tracking is not implemented.');
+
+  Stream<TencentSmartTrackingState> get onSmartTrackingChanged =>
+      throw UnimplementedError('Native Smart tracking is not implemented.');
+
+  Stream<TencentLocation> get onSmartLocationChanged =>
+      throw UnimplementedError('Native Smart tracking is not implemented.');
 
   // ==================== Manager 生命周期 ====================
 
@@ -176,8 +204,7 @@ abstract class TencentLocationPlatform extends PlatformInterface {
   Future<void> setIosAdaptiveDistanceFilterEnabled(
       String geofenceManagerId, bool enabled);
 
-  Future<void> setIosDistanceFilter(
-      String geofenceManagerId, double meters);
+  Future<void> setIosDistanceFilter(String geofenceManagerId, double meters);
 
   Future<void> setIosDesiredAccuracy(
       String geofenceManagerId, IosDesiredAccuracy accuracy);

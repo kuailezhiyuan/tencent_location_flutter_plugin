@@ -17,7 +17,8 @@ enum RequestCodec {
     /// 把 Flutter 下发的 request map 应用到 manager 上，并返回 common 段的快照。
     @discardableResult
     static func apply(_ map: [String: Any?],
-                      to manager: TencentLBSLocationManager) -> CommonConfig {
+                      to manager: TencentLBSLocationManager,
+                      applyCoordinateType: Bool = true) -> CommonConfig {
         let common = (map["common"] as? [String: Any?]) ?? [:]
         let ios = (map["ios"] as? [String: Any?]) ?? [:]
 
@@ -26,7 +27,7 @@ enum RequestCodec {
             common["coordinateType"] as? String)
         let requestLevel = EnumCodecs.requestLevelFromWire(
             common["requestLevel"] as? String)
-        manager.coordinateType = coordinateType
+        if applyCoordinateType { manager.coordinateType = coordinateType }
         manager.requestLevel = requestLevel
         let intervalMs = (common["intervalMs"] as? Int) ?? 5000
 

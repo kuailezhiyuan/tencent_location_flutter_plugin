@@ -70,6 +70,10 @@ final class LocationHandler {
 
         // ---------- 定位 ----------
         case "location.startContinuous":
+            guard !SmartTrackingSession.shared.enabled else {
+                result(Errors.make(code: Errors.alreadyStarted, message: "Smart tracking already owns continuous location"))
+                return true
+            }
             guard let entry = lookup(call, result) else { return true }
             // 配置已通过 apply 直接落到 manager 属性上，无需缓存 snapshot —— 见
             // applyRequestIfPresent 的文档注释。

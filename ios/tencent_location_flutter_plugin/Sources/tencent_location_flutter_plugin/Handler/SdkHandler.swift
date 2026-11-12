@@ -20,6 +20,7 @@ final class SdkHandler {
         switch method {
         case "sdk.setPrivacyPolicyAgreement":
             let agreed = (call.arguments as? [String: Any])?["agreed"] as? Bool ?? false
+            if !agreed { SmartTrackingSession.shared.stop(reason: "privacy_revoked") }
             TencentLBSLocationManager.setUserAgreePrivacy(agreed)
             result(nil)
             return true

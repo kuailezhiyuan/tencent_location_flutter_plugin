@@ -8,6 +8,13 @@ import TencentLBS
 /// 定位 / 朝向回调通过 ``EventDispatcher`` 以 ``managerId`` 路由回 Flutter。
 final class LocationManagerEntry: NSObject, TencentLBSLocationManagerDelegate {
 
+    private static let continuityLock = NSLock()
+    private static var continuousOwners = Set<ObjectIdentifier>()
+    static var anyContinuousRunning: Bool {
+        continuityLock.lock(); defer { continuityLock.unlock() }
+        return !continuousOwners.isEmpty
+    }
+
     let managerId: String
     let locationManager: TencentLBSLocationManager
     private let dispatcher: EventDispatcher
@@ -44,12 +51,18 @@ final class LocationManagerEntry: NSObject, TencentLBSLocationManagerDelegate {
     func startContinuous() {
         if continuousRunning { return }
         continuousRunning = true
+        Self.continuityLock.lock()
+        Self.continuousOwners.insert(ObjectIdentifier(self))
+        Self.continuityLock.unlock()
         locationManager.startUpdatingLocation()
     }
 
     func stopContinuous() {
         if !continuousRunning { return }
         continuousRunning = false
+        Self.continuityLock.lock()
+        Self.continuousOwners.remove(ObjectIdentifier(self))
+        Self.continuityLock.unlock()
         locationManager.stopUpdatingLocation()
     }
 

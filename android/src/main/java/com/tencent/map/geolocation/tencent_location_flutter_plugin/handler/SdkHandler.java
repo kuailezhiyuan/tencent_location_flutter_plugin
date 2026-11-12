@@ -9,6 +9,8 @@ import com.tencent.map.geolocation.TencentLocationManager;
 import com.tencent.map.geolocation.TencentLocationManagerOptions;
 import com.tencent.map.geolocation.tencent_location_flutter_plugin.event.EventDispatcher;
 import com.tencent.map.geolocation.tencent_location_flutter_plugin.util.Errors;
+import com.tencent.map.geolocation.tencent_location_flutter_plugin.smart.SmartTrackingService;
+import com.tencent.map.geolocation.tencent_location_flutter_plugin.smart.SmartTrackingStore;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -40,7 +42,16 @@ public class SdkHandler {
         switch (call.method) {
             case "sdk.setPrivacyPolicyAgreement": {
                 Boolean agreed = call.argument("agreed");
-                TencentLocationManager.setUserAgreePrivacy(Boolean.TRUE.equals(agreed));
+                boolean privacyAgreed = Boolean.TRUE.equals(agreed);
+                try {
+                    new SmartTrackingStore(appContext).savePrivacy(privacyAgreed);
+                    if (!privacyAgreed) SmartTrackingService.stop(appContext);
+                    TencentLocationManager.setUserAgreePrivacy(privacyAgreed);
+                } catch (RuntimeException error) {
+                    android.util.Log.e("SdkHandler", "Applying SDK privacy agreement failed", error);
+                    Errors.native_(result, "Applying SDK privacy agreement failed", error);
+                    return true;
+                }
                 if (Boolean.TRUE.equals(agreed) && !logForwarderInstalled) {
                     // 首次同意隐私后补装日志转发器（attach 时若隐私未同意会装载失败）
                     installSdkLogForwarder();
@@ -146,15 +157,19 @@ public class SdkHandler {
         try {
             if (apiKey != null && !apiKey.isEmpty()) {
                 TencentLocationManagerOptions.setKey(apiKey);
+                new SmartTrackingStore(appContext).saveSdk("apiKey", apiKey);
             }
             if (extraKey != null && !extraKey.isEmpty()) {
                 TencentLocationManagerOptions.setExtraKey(extraKey);
+                new SmartTrackingStore(appContext).saveSdk("extraKey", extraKey);
             }
             if (deviceId != null && !deviceId.isEmpty()) {
                 TencentLocationManager.getInstance(appContext).setDeviceID(appContext, deviceId);
+                new SmartTrackingStore(appContext).saveSdk("deviceId", deviceId);
             }
             result.success(null);
         } catch (Exception t) {
+            android.util.Log.e("SdkHandler", "Initializing Tencent SDK and persisting native restore configuration failed", t);
             Errors.code(result, Errors.SDK_INIT_FAILED,
                     "sdk.init failed: " + t.getMessage(), t.toString());
         }
@@ -167,6 +182,7 @@ public class SdkHandler {
         try {
             return TencentLocationManager.getInstance(appContext).getVersion();
         } catch (Exception t) {
+            android.util.Log.e("SdkHandler", "Reading Tencent SDK version failed", t);
             return "";
         }
     }
@@ -176,6 +192,7 @@ public class SdkHandler {
         try {
             return TencentLocationManager.getInstance(appContext).getBuild();
         } catch (Exception t) {
+            android.util.Log.e("SdkHandler", "Reading Tencent SDK build failed", t);
             return "";
         }
     }
@@ -185,6 +202,7 @@ public class SdkHandler {
         try {
             return TencentLocationManager.getInstance(appContext).getOaid();
         } catch (Exception t) {
+            android.util.Log.e("SdkHandler", "Reading Tencent SDK OAID failed", t);
             return "";
         }
     }
@@ -193,7 +211,7 @@ public class SdkHandler {
      * 安装 SDK 日志转发器。
      *
      * <p>插件 attach 时调用一次；若彼时隐私尚未同意，SDK 内部会抛异常导致装载失败，
-     * 此处吞掉异常并保留 {@link #logForwarderInstalled} 为 {@code false}，
+     * 此处记录异常并保留 {@link #logForwarderInstalled} 为 {@code false}，
      * 等用户调用 {@code setPrivacyPolicyAgreement(true)} 后再补装一次（幂等）。
      */
     private void installSdkLogForwarder() {
@@ -211,7 +229,7 @@ public class SdkHandler {
         } catch (Exception e) {
             logForwarderInstalled = false;
         
-            android.util.Log.e("SdkHandler", "Exception ignored", e);
+            android.util.Log.e("SdkHandler", "Installing Tencent SDK log forwarding failed; retrying after privacy agreement", e);
         }
     }
 
@@ -219,7 +237,7 @@ public class SdkHandler {
         try {
             TencentLocationManager.getInstance(appContext).setSDKLogListener(null);
         } catch (Exception e) {
-            android.util.Log.e("SdkHandler", "Exception ignored", e);
+            android.util.Log.e("SdkHandler", "Removing Tencent SDK log forwarding on engine detach failed", e);
         }
         logForwarderInstalled = false;
     }

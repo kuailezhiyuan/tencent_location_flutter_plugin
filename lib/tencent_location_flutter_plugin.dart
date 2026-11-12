@@ -38,6 +38,7 @@ export 'src/models/tencent_location_error.dart';
 export 'src/models/tencent_location_request.dart';
 export 'src/models/tencent_poi.dart';
 export 'src/models/tencent_sdk_log_event.dart';
+export 'src/models/tencent_smart_tracking.dart';
 
 // ---------- 公开类 ----------
 export 'src/tencent_geofence_manager.dart';

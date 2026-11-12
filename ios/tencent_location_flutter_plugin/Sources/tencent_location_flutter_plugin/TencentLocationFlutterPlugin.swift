@@ -24,6 +24,7 @@ public class TencentLocationFlutterPlugin: NSObject, FlutterPlugin {
             registry: geofenceRegistry,
             dispatcher: dispatcher)
         super.init()
+        SmartTrackingSession.shared.attach(dispatcher)
 
     }
 
@@ -35,8 +36,40 @@ public class TencentLocationFlutterPlugin: NSObject, FlutterPlugin {
         registrar.addMethodCallDelegate(instance, channel: methodChannel)
     }
 
+    private func handleSmart(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
+        let session = SmartTrackingSession.shared
+        do {
+            switch call.method {
+            case "smart.start":
+                guard let arguments = call.arguments as? [String: Any] else {
+                    Errors.invalidArg(result, "Smart tracking arguments are required"); return
+                }
+                try session.start(arguments: arguments, sdkConfig: sdkConfig,
+                                  ordinaryContinuousActive: LocationManagerEntry.anyContinuousRunning)
+                result(session.state().compactMapValues { $0 })
+            case "smart.stop":
+                session.stop(); result(session.state().compactMapValues { $0 })
+            case "smart.getState": result(session.state().compactMapValues { $0 })
+            case "smart.getLog": result(try session.getLog())
+            case "smart.clearLog": try session.clearLog(); result(nil)
+            default: result(FlutterMethodNotImplemented)
+            }
+        } catch let error as SmartStartError {
+            NSLog("Smart tracking %@ failed: %@; stack=%@", call.method, error.localizedDescription, Thread.callStackSymbols.joined(separator: " | "))
+            result(Errors.make(code: error.code, message: error.message))
+        } catch {
+            NSLog("Smart tracking %@ failed: %@; stack=%@", call.method, String(describing: error), Thread.callStackSymbols.joined(separator: " | "))
+            result(Errors.make(code: error is SmartConfigurationError ? Errors.invalidArgument : Errors.nativeError,
+                               message: error.localizedDescription))
+        }
+    }
+
     public func handle(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
         let method = call.method
+        if method.hasPrefix("smart.") {
+            handleSmart(call, result: result)
+            return
+        }
         if method.hasPrefix("sdk.") {
             if sdkHandler.handle(method, call, result) { return }
         } else if method.hasPrefix("manager.") || method.hasPrefix("location.") ||
